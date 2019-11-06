@@ -1,0 +1,42 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "(lldb) Launch debug",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/Debug/viki",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build/Debug",
+            "environment": [],
+            "externalConsole": true,
+            "MIMode": "lldb",
+            "logging": {
+                "trace": true,
+                "traceResponse": true,
+                "engineLogging": true
+              }
+        },
+        {
+            "name": "(lldb) Launch release",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/Release/viki",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build/Release",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "logging": {
+                "trace": true,
+                "traceResponse": true,
+                "engineLogging": true
+              }
+        }
+    ]
+}
