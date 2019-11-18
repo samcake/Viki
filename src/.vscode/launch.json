@@ -17,24 +17,7 @@
             "MIMode": "lldb",
             "logging": {
                 "trace": true,
-                "traceResponse": true,
-                "engineLogging": true
-              }
-        },
-        {
-            "name": "(lldb) Launch release",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/Release/viki",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build/Release",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "lldb",
-            "logging": {
-                "trace": true,
-                "traceResponse": true,
+                "traceResponse": true, 
                 "engineLogging": true
               }
         }

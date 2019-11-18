@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.10)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -std=c++11 " )
 set(EXECUTABLE_OUTPUT_PATH ./${CMAKE_BUILD_TYPE})
 
-add_executable(${PROJECT_NAME} viki.cpp)
+add_executable(${PROJECT_NAME} viki.cpp volk.c)
 
 find_package(Vulkan REQUIRED)
 find_package(glfw3 3.3 REQUIRED)

@@ -4,8 +4,10 @@
 #include <string>
 
 #include <iostream>
+
 #define VK_USE_PLATFORM_MACOS_MVK
-#include <vulkan/vulkan.h>
+#include "volk.h"
+//#include <vulkan/vulkan.h>
 
 #include <GLFW/glfw3.h>
 #ifdef VK_USE_PLATFORM_MACOS_MVK
@@ -110,8 +112,6 @@ VkDebugReportCallbackEXT registerDebugCallback(VkInstance instance)
 	createInfo.flags = VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_ERROR_BIT_EXT;
 	createInfo.pfnCallback = debugReportCallback;
 
-	PFN_vkCreateDebugReportCallbackEXT vkCreateDebugReportCallbackEXT = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugReportCallbackEXT");
-
 	VkDebugReportCallbackEXT callback = 0;
 	VK_CHECK(vkCreateDebugReportCallbackEXT(instance, &createInfo, 0, &callback));
 
@@ -207,7 +207,7 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
     const char* extensions[] =
     {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-		VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,
+    	VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME
     };
     
     VkPhysicalDeviceFeatures features = {};
@@ -223,6 +223,7 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 
     VkDevice device = 0;
     VK_CHECK(vkCreateDevice(physicalDevice, &createInfo, 0, &device));
+		printf("vkCreateDevice \n");
     
     return device;
 }
@@ -423,16 +424,43 @@ VkShaderModule loadShader(VkDevice device, const char* path)
 	return shaderModule;
 }
 
+struct vec3 {
+	float x { 0 };
+	float y { 0 };
+	float z { 0 };
+};
+
+struct Camera {
+	vec3 _eye;
+
+	vec3 _right;
+	vec3 _up;
+	vec3 _back;
+
+	float _focal;
+	float _sensorHeight;
+	float _aspectRatio;
+};
+
+
 VkPipelineLayout createPipelineLayout(VkDevice device)
 {
 	VkDescriptorSetLayoutBinding setBindings[1] = {};
+//	setBindings[0].binding = 0;
+//	setBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+//	setBindings[0].descriptorCount = 1;
+//	setBindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+//	setBindings[0].pImmutableSamplers = nullptr; 
+	
 	setBindings[0].binding = 0;
-	setBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	setBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	setBindings[0].descriptorCount = 1;
-	setBindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	setBindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+	setBindings[0].pImmutableSamplers = nullptr;
 
 	VkDescriptorSetLayoutCreateInfo setCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
 	setCreateInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR;
+	//setCreateInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT_EXT;
 	setCreateInfo.bindingCount = ARRAYSIZE(setBindings);
 	setCreateInfo.pBindings = setBindings;
 
@@ -443,6 +471,7 @@ VkPipelineLayout createPipelineLayout(VkDevice device)
 	VkPipelineLayoutCreateInfo createInfo = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
 	createInfo.setLayoutCount = 1;
 	createInfo.pSetLayouts = &setLayout;
+
 
 	VkPipelineLayout layout = 0;
 	VK_CHECK(vkCreatePipelineLayout(device, &createInfo, 0, &layout));
@@ -456,7 +485,7 @@ VkPipelineLayout createPipelineLayout(VkDevice device)
 VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache, VkRenderPass renderPass, VkShaderModule vs, VkShaderModule fs, VkPipelineLayout layout)
 {
 	VkGraphicsPipelineCreateInfo createInfo = { VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
-
+ 
 	VkPipelineShaderStageCreateInfo stages[2] = {};
 	stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
@@ -475,6 +504,7 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache
 
 	VkPipelineInputAssemblyStateCreateInfo inputAssembly = { VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO };
 	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
 	createInfo.pInputAssemblyState = &inputAssembly;
 
 	VkPipelineViewportStateCreateInfo viewportState = { VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO };
@@ -748,6 +778,47 @@ void destroyBuffer(const Buffer& buffer, VkDevice device)
 	vkDestroyBuffer(device, buffer.buffer, 0);
 }
 
+struct UniformBuffer
+{
+	std::vector<Buffer> buffers;
+
+	uint32_t bufferCount;
+};
+
+void createUniformBuffer(UniformBuffer& ubo, uint32_t numBuffers, VkDevice device, const VkPhysicalDeviceMemoryProperties& memoryProperties, size_t bufferSize) {
+    ubo.buffers.resize(numBuffers);
+
+    for (size_t i = 0; i < numBuffers; i++) {
+        createBuffer(ubo.buffers[i], device, memoryProperties, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+    }
+}
+
+template <typename T> void updateUniformBuffer(VkDevice device, uint32_t index, UniformBuffer& ubo, T& data) {
+	void* dstdata = 0;
+	vkMapMemory(device, ubo.buffers[index].memory, 0, sizeof(T), 0, &dstdata);
+		memcpy(dstdata, &data, sizeof(T));
+	vkUnmapMemory(device, ubo.buffers[index].memory);
+
+}
+
+void createDescriptorPool(uint32_t count) {
+	VkDescriptorPoolSize poolSize = {};
+	poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	poolSize.descriptorCount = count;
+
+	VkDescriptorPoolCreateInfo poolInfo = {};
+	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	poolInfo.poolSizeCount = 1;
+	poolInfo.pPoolSizes = &poolSize;
+
+	//vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool)
+
+	//poolInfo.maxSets = count;
+
+
+
+}
+
 VkImageMemoryBarrier imageBarrier(VkImage image, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, VkImageLayout oldLayout, VkImageLayout newLayout)
 {
 	VkImageMemoryBarrier result = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
@@ -772,10 +843,15 @@ int main(int argc, const char * argv[]) {
     assert(rc);
 
     std::cout << "Create Viki... \n";
+	
+	VK_CHECK(volkInitialize());
+
     VkInstance instance;
     instance = createInstance();
     
- //   VkDebugReportCallbackEXT debugCallback = registerDebugCallback(instance);
+  //  VkDebugReportCallbackEXT debugCallback = registerDebugCallback(instance);
+
+	volkLoadInstance(instance);
 
     VkPhysicalDevice physicalDevices[16];
     uint32_t physicalDeviceCount = sizeof(physicalDevices) / sizeof(physicalDevices[0]);
@@ -861,12 +937,35 @@ int main(int argc, const char * argv[]) {
 	assert(ib.size >= mesh.indices.size() * sizeof(uint32_t));
 	memcpy(ib.data, mesh.indices.data(), mesh.indices.size() * sizeof(uint32_t));
 
+	Camera cam;
+	cam._aspectRatio = 2.0f;
+	cam._eye.x = 0.0f;
+	cam._eye.y = 1.0f;
+	cam._eye.z = 0.0f;
 
+	cam._back.x = 0.0f;
+	cam._back.y = 0.0f;
+	cam._back.z = -1.0f;
+
+	cam._right.x = 1.0f;
+	cam._right.y = 0.0f;
+	cam._right.z = 0.0f;
+
+	cam._up.x = 0.0f;
+	cam._up.y = 1.0f;
+	cam._up.z = 0.0f;
+
+	cam._focal = 0.035f;
+	cam._sensorHeight = 0.035f;
+
+
+	UniformBuffer cam_ub;
+	createUniformBuffer(cam_ub, swapchain.imageCount, device, memoryProperties, sizeof(Camera));
 
     while (!glfwWindowShouldClose(window)) {
         // Poll for and process events 
         glfwPollEvents();
-
+ 
         resizeSwapchainIfNecessary(swapchain, physicalDevice, device, surface, familyIndex, swapchainFormat, renderPass);
 
 		uint32_t imageIndex = 0;
@@ -896,6 +995,9 @@ int main(int argc, const char * argv[]) {
 		vkCmdBeginRenderPass(commandBuffer, &passBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
 
+
+    	updateUniformBuffer(device, imageIndex, cam_ub, cam);
+
 		VkViewport viewport = { 0, 0, float(swapchain.width), float(swapchain.height), 0, 1 };
 		VkRect2D scissor = { {0, 0}, {uint32_t(swapchain.width), uint32_t(swapchain.height)} };
 
@@ -921,7 +1023,7 @@ int main(int argc, const char * argv[]) {
 		vkCmdBindIndexBuffer(commandBuffer, ib.buffer, 0, VK_INDEX_TYPE_UINT32);
 		vkCmdDrawIndexed(commandBuffer, uint32_t(mesh.indices.size()), 1, 0, 0, 0);
        */
-	   vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+	   vkCmdDraw(commandBuffer, 4, 1, 0, 0);
 
 	
 		vkCmdEndRenderPass(commandBuffer);
@@ -984,8 +1086,7 @@ int main(int argc, const char * argv[]) {
 
 	vkDestroyDevice(device, 0);
 
- //   PFN_vkDestroyDebugReportCallbackEXT vkDestroyDebugReportCallbackEXT = (PFN_vkDestroyDebugReportCallbackEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugReportCallbackEXT");
-//	vkDestroyDebugReportCallbackEXT(instance, debugCallback, 0);
+ //	vkDestroyDebugReportCallbackEXT(instance, debugCallback, 0);
 
     vkDestroyInstance(instance, nullptr);
     return 0;
