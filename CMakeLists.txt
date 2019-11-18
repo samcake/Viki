@@ -4,16 +4,23 @@ cmake_minimum_required(VERSION 3.10)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -std=c++11 " )
 set(EXECUTABLE_OUTPUT_PATH ./${CMAKE_BUILD_TYPE})
 
-add_executable(${PROJECT_NAME} viki.cpp volk.c)
 
-find_package(Vulkan REQUIRED)
+
+add_executable(${PROJECT_NAME} viki.cpp)
+add_subdirectory(externals/volk volk)
+
+#find_package(Vulkan REQUIRED)
 find_package(glfw3 3.3 REQUIRED)
+#
+#if (VULKAN_FOUND)
+#    message(STATUS "Found Vulkan, Including and Linking now")
+#    include_directories(${Vulkan_INCLUDE_DIRS})
+#    
+#endif (VULKAN_FOUND)ls
 
-if (VULKAN_FOUND)
-    message(STATUS "Found Vulkan, Including and Linking now")
-    include_directories(${Vulkan_INCLUDE_DIRS})
-    target_link_libraries (${PROJECT_NAME} ${Vulkan_LIBRARIES} glfw)
-endif (VULKAN_FOUND)
+target_link_libraries(${PROJECT_NAME} PRIVATE volk_headers glfw)
+
+#target_link_libraries (${PROJECT_NAME} glfw)
 
 set(GLSL_VALIDATOR "/Users/sam/Dev/vulkansdk-macos-1.1.121.0/macOS/bin/glslangValidator")
 message(STATUS "${GLSL_VALIDATOR}")
