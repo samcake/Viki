@@ -114,8 +114,8 @@ VkBool32 debugReportCallback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTyp
     OutputDebugStringA(message);
 #endif
 
-    if (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT)
-        assert(!"Validation error encountered!");
+  //  if (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT)
+//        assert(!"Validation error encountered!");
 
     return VK_FALSE;
 }
@@ -220,8 +220,7 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
     
     const char* extensions[] =
     {
-        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-        VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME
     };
     
     VkPhysicalDeviceFeatures features = {};
@@ -445,15 +444,12 @@ struct vec3 {
 };
 
 struct Camera {
-    vec3 _eye;
 
-    vec3 _right;
-    vec3 _up;
-    vec3 _back;
+    vec3 _eye; float _focal;
 
-    float _focal;
-    float _sensorHeight;
-    float _aspectRatio;
+    vec3 _right; float _sensorHeight;
+    vec3 _up;float _aspectRatio;
+    vec3 _back;float _spareA;
 };
 
 
@@ -740,6 +736,7 @@ struct Buffer
     VkDeviceMemory memory;
     void* data;
     size_t size;
+    VkMemoryRequirements mem_reqs;
 };
 
 uint32_t selectMemoryType(const VkPhysicalDeviceMemoryProperties& memoryProperties, uint32_t memoryTypeBits, VkMemoryPropertyFlags flags)
@@ -757,7 +754,9 @@ void createBuffer(Buffer& result, VkDevice device, const VkPhysicalDeviceMemoryP
     VkBufferCreateInfo createInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
     createInfo.size = size;
     createInfo.usage = usage;
-
+    createInfo.flags = 0;
+    createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    
     VkBuffer buffer = 0;
     VK_CHECK(vkCreateBuffer(device, &createInfo, 0, &buffer));
 
@@ -783,6 +782,7 @@ void createBuffer(Buffer& result, VkDevice device, const VkPhysicalDeviceMemoryP
     result.memory = memory;
     result.data = data;
     result.size = size;
+    result.mem_reqs = memoryRequirements;
 }
 
 void destroyBuffer(const Buffer& buffer, VkDevice device)
@@ -838,15 +838,37 @@ void createUniformBuffer(UniformBuffer& ubo, uint32_t numBuffers, VkDevice devic
     std::vector<VkDescriptorSet> descriptorSets(numBuffers);
     VK_CHECK(vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()));
     ubo.descriptorSets = descriptorSets;
-
+    
+    for (int i = 0; i < numBuffers; i++) {
+        VkDescriptorBufferInfo bufferInfo = {};
+        bufferInfo.buffer = ubo.buffers[i].buffer;
+        bufferInfo.offset = 0;
+        bufferInfo.range = sizeof(bufferSize);
+        
+        VkWriteDescriptorSet descriptorWrite = {};
+        descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrite.dstSet = descriptorSets[i];
+        descriptorWrite.dstBinding = 0;
+        descriptorWrite.dstArrayElement = 0;
+        descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrite.descriptorCount = 1;
+        
+        descriptorWrite.pBufferInfo = &bufferInfo;
+        descriptorWrite.pImageInfo = nullptr; // Optional
+        descriptorWrite.pTexelBufferView = nullptr; // Optional
+        
+        vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
+    }
 }
 
 template <typename T> void updateUniformBuffer(VkDevice device, uint32_t index, UniformBuffer& ubo, T& data) {
-    void* dstdata = 0;
-    vkMapMemory(device, ubo.buffers[index].memory, 0, sizeof(T), 0, &dstdata);
-        memcpy(dstdata, &data, sizeof(T));
-    vkUnmapMemory(device, ubo.buffers[index].memory);
+//    void* dstdata = 0;
+  //  vkMapMemory(device, ubo.buffers[index].memory, 0, ubo.buffers[index].mem_reqs.size, 0, &dstdata);
+      //  memcpy(dstdata, &data, sizeof(T));
+   // vkUnmapMemory(device, ubo.buffers[index].memory);
 
+    memcpy(ubo.buffers[index].data, &data, sizeof(T));
+    
 }
 
 VkImageMemoryBarrier imageBarrier(VkImage image, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, VkImageLayout oldLayout, VkImageLayout newLayout)
@@ -925,10 +947,10 @@ int main(int argc, const char * argv[]) {
     Swapchain swapchain;
     createSwapchain(swapchain, physicalDevice, device, surface, familyIndex, swapchainFormat, renderPass);
 
-    VkShaderModule triangleVS = loadShader(device, "shaders/triangle.vert.glsl.spv");
+    VkShaderModule triangleVS = loadShader(device, "../shaders/triangle.vert.glsl.spv");
     assert(triangleVS);
 
-    VkShaderModule triangleFS = loadShader(device, "shaders/triangle.frag.glsl.spv");
+    VkShaderModule triangleFS = loadShader(device, "../shaders/triangle.frag.glsl.spv");
     assert(triangleFS);
 
     // TODO: this is critical for performance!
@@ -970,14 +992,9 @@ int main(int argc, const char * argv[]) {
     memcpy(ib.data, mesh.indices.data(), mesh.indices.size() * sizeof(uint32_t));
 
     Camera cam;
-    cam._aspectRatio = 2.0f;
-    cam._eye.x = 0.0f;
-    cam._eye.y = 1.0f;
-    cam._eye.z = 0.0f;
-
-    cam._back.x = 0.0f;
-    cam._back.y = 0.0f;
-    cam._back.z = -1.0f;
+    cam._eye.x = 0.1f;
+    cam._eye.y = 0.1f;
+    cam._eye.z = -0.2f;
 
     cam._right.x = 1.0f;
     cam._right.y = 0.0f;
@@ -987,10 +1004,15 @@ int main(int argc, const char * argv[]) {
     cam._up.y = 1.0f;
     cam._up.z = 0.0f;
 
-    cam._focal = 0.035f;
-    cam._sensorHeight = 0.035f;
+    cam._back.x = 0.0f;
+    cam._back.y = 0.0f;
+    cam._back.z = 1.0f;
+    
+    cam._focal = 0.036f;
+    cam._sensorHeight = 0.056f;
+    cam._aspectRatio = 16.0f/9.0f;
 
-
+    
     UniformBuffer cam_ub;
     createUniformBuffer(cam_ub, swapchain.imageCount, device, memoryProperties, sizeof(Camera), triangleDescriptorSetLayout);
 
@@ -1055,7 +1077,8 @@ int main(int argc, const char * argv[]) {
         vkCmdBindIndexBuffer(commandBuffer, ib.buffer, 0, VK_INDEX_TYPE_UINT32);
         vkCmdDrawIndexed(commandBuffer, uint32_t(mesh.indices.size()), 1, 0, 0, 0);
        */
-       vkCmdDraw(commandBuffer, 4, 1, 0, 0);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, triangleLayout, 0, 1, &cam_ub.descriptorSets[imageIndex], 0, nullptr);
+        vkCmdDraw(commandBuffer, 4, 1, 0, 0);
 
     
         vkCmdEndRenderPass(commandBuffer);

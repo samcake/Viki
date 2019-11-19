@@ -19,15 +19,15 @@ vec3 hsv2rgb(vec3 c) {
 float PI = 2.0 * acos(0.0);
 
 struct Camera {
-	vec3 _eye;
+	vec3 _eye; float _focal;
 
-	vec3 _right;
-	vec3 _up;
-	vec3 _back;
+	vec3 _right; float _sensorHeight;
+	vec3 _up;float _aspectRatio;
+	vec3 _back;float _spareA;
 
-	float _focal;
-	float _sensorHeight;
-	float _aspectRatio;
+	
+	
+	
 };
 
 layout(binding = 0) uniform UniformBufferObject {
@@ -40,7 +40,7 @@ vec3 worldUp = vec3(0.0, 1.0, 0.0);
 vec3 right = normalize(cross(worldUp, -forward));
 vec3 up = normalize(cross(-forward, right));
 
-Camera cam = Camera(vec3(0.1, 0.50, -0.2), right, up, -forward, 0.036, 0.056, 16.0/9.0);
+Camera cam = Camera(vec3(0.1, 0.50, -0.2), 0.036,  right, 0.056, up,  16.0/9.0, -forward, 1.0);
 
 vec3 eyeFromClipSpace(Camera c, vec2 clipPos) {
 	return vec3(clipPos.x*cam._aspectRatio*cam._sensorHeight * 0.5, clipPos.y * cam._sensorHeight * 0.5, -cam._focal);

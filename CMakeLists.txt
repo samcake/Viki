@@ -21,8 +21,12 @@ find_package(Vulkan REQUIRED)
 #
 if (VULKAN_FOUND)
    message(STATUS "Found Vulkan, Including and Linking now")
-    include_directories(${Vulkan_INCLUDE_DIRS})   
-    set(GLSL_VALIDATOR "${Vulkan_INCLUDE_DIRS}/../bin/glslangValidator.exe")
+    include_directories(${Vulkan_INCLUDE_DIRS})  
+    
+    file(GLOB_RECURSE GLSL_VALIDATOR 
+    "${Vulkan_INCLUDE_DIRS}/../bin/glslangValidator*"
+    )
+   # set(GLSL_VALIDATOR "${Vulkan_INCLUDE_DIRS}/../bin/glslangValidator.exe")
 
 #else()
 #    set(GLSL_VALIDATOR "/Users/sam/Dev/vulkansdk-macos-1.1.121.0/macOS/bin/glslangValidator")
