@@ -8,21 +8,26 @@ set(EXECUTABLE_OUTPUT_PATH ./${CMAKE_BUILD_TYPE})
 
 add_executable(${PROJECT_NAME} viki.cpp)
 add_subdirectory(externals/volk volk)
+add_subdirectory(externals/glfw glfw)
 
-#find_package(Vulkan REQUIRED)
-find_package(glfw3 3.3 REQUIRED)
-#
-#if (VULKAN_FOUND)
-#    message(STATUS "Found Vulkan, Including and Linking now")
-#    include_directories(${Vulkan_INCLUDE_DIRS})
-#    
-#endif (VULKAN_FOUND)ls
 
 target_link_libraries(${PROJECT_NAME} PRIVATE volk_headers glfw)
 
 #target_link_libraries (${PROJECT_NAME} glfw)
 
-set(GLSL_VALIDATOR "/Users/sam/Dev/vulkansdk-macos-1.1.121.0/macOS/bin/glslangValidator")
+
+find_package(Vulkan REQUIRED)
+#find_package(glfw3 3.3 REQUIRED)
+#
+if (VULKAN_FOUND)
+   message(STATUS "Found Vulkan, Including and Linking now")
+    include_directories(${Vulkan_INCLUDE_DIRS})   
+    set(GLSL_VALIDATOR "${Vulkan_INCLUDE_DIRS}/../bin/glslangValidator.exe")
+
+#else()
+#    set(GLSL_VALIDATOR "/Users/sam/Dev/vulkansdk-macos-1.1.121.0/macOS/bin/glslangValidator")
+endif (VULKAN_FOUND)
+
 message(STATUS "${GLSL_VALIDATOR}")
 
 file(GLOB_RECURSE GLSL_SOURCE_FILES_VERT
@@ -63,10 +68,3 @@ add_custom_target(
 
 add_dependencies(viki Shaders)
 
-
-#add_custom_command(TARGET viki POST_BUILD
- #   COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:viki>/shaders/"
-  #  COMMAND ${CMAKE_COMMAND} -E copy_directory
-   #     "${PROJECT_BINARY_DIR}/shaders"
-    #    "$<TARGET_FILE_DIR:viki>/shaders"
-     #   )
