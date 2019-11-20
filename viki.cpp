@@ -5,6 +5,8 @@
 
 #include <iostream>
 
+#include <glm/glm.hpp>
+
 /* Set platform defines at build time for volk to pick up. */
 #if defined(_WIN32)
 #define VK_USE_PLATFORM_WIN32_KHR
@@ -437,19 +439,12 @@ VkShaderModule loadShader(VkDevice device, const char* path)
     return shaderModule;
 }
 
-struct vec3 {
-    float x { 0 };
-    float y { 0 };
-    float z { 0 };
-};
-
 struct Camera {
+    glm::vec3 _eye;     float _focal;
+    glm::vec3 _right;   float _sensorHeight;
+    glm::vec3 _up;      float _aspectRatio;
+    glm::vec3 _back;   float _spare;
 
-    vec3 _eye; float _focal;
-
-    vec3 _right; float _sensorHeight;
-    vec3 _up;float _aspectRatio;
-    vec3 _back;float _spareA;
 };
 
 
@@ -991,23 +986,17 @@ int main(int argc, const char * argv[]) {
     assert(ib.size >= mesh.indices.size() * sizeof(uint32_t));
     memcpy(ib.data, mesh.indices.data(), mesh.indices.size() * sizeof(uint32_t));
 
-    Camera cam;
-    cam._eye.x = 0.1f;
-    cam._eye.y = 0.1f;
-    cam._eye.z = -0.2f;
-
-    cam._right.x = 1.0f;
-    cam._right.y = 0.0f;
-    cam._right.z = 0.0f;
-
-    cam._up.x = 0.0f;
-    cam._up.y = 1.0f;
-    cam._up.z = 0.0f;
-
-    cam._back.x = 0.0f;
-    cam._back.y = 0.0f;
-    cam._back.z = 1.0f;
     
+    glm::vec3 forward = glm::normalize(glm::vec3(0.05, -0.05, -1.0));
+    glm::vec3 worldUp = glm::vec3(0.0, 1.0, 0.0);
+    glm::vec3 right = glm::normalize(glm::cross(worldUp, -forward));
+    glm::vec3 up = glm::normalize(glm::cross(-forward, right));
+    
+    Camera cam;
+    cam._eye = glm::vec3( 0.1f, 0.5f, -0.2f);
+    cam._right = right;
+    cam._up = up;
+    cam._back = -forward;
     cam._focal = 0.036f;
     cam._sensorHeight = 0.056f;
     cam._aspectRatio = 16.0f/9.0f;

@@ -9,9 +9,10 @@ set(EXECUTABLE_OUTPUT_PATH ./${CMAKE_BUILD_TYPE})
 add_executable(${PROJECT_NAME} viki.cpp)
 add_subdirectory(externals/volk volk)
 add_subdirectory(externals/glfw glfw)
+add_subdirectory(externals/glm glm)
 
 
-target_link_libraries(${PROJECT_NAME} PRIVATE volk_headers glfw)
+target_link_libraries(${PROJECT_NAME} PRIVATE volk_headers glfw glm)
 
 #target_link_libraries (${PROJECT_NAME} glfw)
 
