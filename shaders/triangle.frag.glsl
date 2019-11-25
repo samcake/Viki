@@ -24,10 +24,6 @@ struct Camera {
 	vec3 _right; float _sensorHeight;
 	vec3 _up;float _aspectRatio;
 	vec3 _back;float _spareA;
-
-	
-	
-	
 };
 
 layout(binding = 0) uniform UniformBufferObject {
@@ -43,7 +39,7 @@ vec3 up = normalize(cross(-forward, right));
 Camera cam = Camera(vec3(0.1, 0.50, -0.2), 0.036,  right, 0.056, up,  16.0/9.0, -forward, 1.0);
 
 vec3 eyeFromClipSpace(Camera c, vec2 clipPos) {
-	return vec3(clipPos.x*cam._aspectRatio*cam._sensorHeight * 0.5, clipPos.y * cam._sensorHeight * 0.5, -cam._focal);
+	return vec3(clipPos.x*c._aspectRatio*c._sensorHeight * 0.5, clipPos.y * c._sensorHeight * 0.5, -c._focal);
 }
 
 vec3 worldFromEyeSpace(Camera c, vec3 eyePos) {
@@ -194,8 +190,8 @@ void main()
 	vec3 worldDir = normalize(inWorldDir);
 	
 
-	if (inUV.x > 0) {
-		vec3 eyePos = eyeFromClipSpace( cam, inUV.xy);
+	if (true /*inUV.x > 0*/) {
+		vec3 eyePos = eyeFromClipSpace( ubo._cam, inUV.xy);
 	    worldPos = worldFromEyeSpace( cam, eyePos);
 
 		worldDir = normalize(worldFromEyeSpaceDir(cam, eyePos));

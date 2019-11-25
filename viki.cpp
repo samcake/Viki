@@ -6,6 +6,7 @@
 #include <iostream>
 
 #include <glm/glm.hpp>
+#include <glm/ext.hpp>
 
 /* Set platform defines at build time for volk to pick up. */
 #if defined(_WIN32)
@@ -884,6 +885,118 @@ VkImageMemoryBarrier imageBarrier(VkImage image, VkAccessFlags srcAccessMask, Vk
     return result;
 }
 
+std::shared_ptr<Camera> _camera;
+
+struct Controller {
+    float _translateFront{ 0 };
+    float _translateBack{ 0 };
+    
+    float _translateLeft{ 0 };
+    float _translateRight{ 0 };
+    
+    float _rotateLeft{ 0 };
+    float _rotateRight{ 0 };
+    
+    float _zoomIn{ 0 };
+    float _zoomOut{ 0 };
+    
+};
+
+std::shared_ptr<Controller> _controller;
+
+void updateCameraFromController(std::shared_ptr<Camera>& cam, std::shared_ptr<Controller>& control,
+                                std::chrono::milliseconds& duration) {
+
+    float time =(0.001f * duration.count());
+    
+    float translationSpeed = 2.0f;
+    float rotationSpeed = 2.0f;
+    
+    glm::vec3 back = cam->_back;
+    auto flatFront = glm::normalize(glm::vec3(-back.x, 0, -back.z));
+    glm::vec3 right = cam->_right;
+      
+    glm::vec3 translation { 0.0f };
+    translation +=  flatFront * (control->_translateFront -  control->_translateBack) * translationSpeed * time;
+     translation +=  right * (control->_translateRight -  control->_translateLeft) * translationSpeed * time;
+    
+    
+    glm::quat rotation;
+    rotation = glm::angleAxis((control->_rotateLeft -  control->_rotateRight) * rotationSpeed * time, glm::vec3(0, 1.0f, 0.0));
+
+    
+    _camera->_eye += translation;
+    _camera->_back = rotation * back;
+    _camera->_up = rotation * _camera->_up;
+    _camera->_right = rotation * _camera->_right;
+    
+    float focalChange = (control->_zoomOut - control->_zoomIn) * 0.1f * time;
+    if (focalChange != 0) {
+        _camera->_focal = std::max( 0.001f, _camera->_focal + focalChange);
+    }
+}
+
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+    if (key == GLFW_KEY_W) {
+        if (action == GLFW_PRESS || action == GLFW_REPEAT) {
+            _controller->_translateFront = 1.0f;
+        } else {
+            _controller->_translateFront = 0.0f;
+        }
+    }
+    if (key == GLFW_KEY_S) {
+        if (action == GLFW_PRESS || action == GLFW_REPEAT) {
+            _controller->_translateBack = 1.0f;
+        } else {
+            _controller->_translateBack = 0.0f;
+        }
+    }
+    if (key == GLFW_KEY_Q) {
+        if (action == GLFW_PRESS || action == GLFW_REPEAT) {
+            _controller->_translateLeft = 1.0f;
+        } else {
+            _controller->_translateLeft = 0.0f;
+        }
+    }
+    if (key == GLFW_KEY_E) {
+        if (action == GLFW_PRESS || action == GLFW_REPEAT) {
+            _controller->_translateRight = 1.0f;
+        } else {
+            _controller->_translateRight = 0.0f;
+        }
+    }
+    if (key == GLFW_KEY_A) {
+        if (action == GLFW_PRESS || action == GLFW_REPEAT) {
+            _controller->_rotateLeft = 1.0f;
+        } else {
+            _controller->_rotateLeft = 0.0f;
+        }
+    }
+    if (key == GLFW_KEY_D) {
+        if (action == GLFW_PRESS || action == GLFW_REPEAT) {
+            _controller->_rotateRight = 1.0f;
+        } else {
+            _controller->_rotateRight = 0.0f;
+        }
+    }
+    
+    if (key == GLFW_KEY_Z) {
+        if (action == GLFW_PRESS || action == GLFW_REPEAT) {
+            _controller->_zoomIn = 1.0f;
+        } else {
+            _controller->_zoomIn = 0.0f;
+        }
+    } else if (key == GLFW_KEY_X/* && (mods & GLFW_MOD_SHIFT)*/) {
+        if (action == GLFW_PRESS || action == GLFW_REPEAT) {
+            _controller->_zoomOut = 1.0f;
+        } else {
+            _controller->_zoomOut = 0.0f;
+        }
+    }
+}
+
+
 int main(int argc, const char * argv[]) {
 
     int rc = glfwInit();
@@ -917,7 +1030,8 @@ int main(int argc, const char * argv[]) {
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     auto window = glfwCreateWindow(800, 400, "viki", nullptr, nullptr);
     assert(window);
-
+    glfwSetKeyCallback(window, key_callback);
+    
     VkSurfaceKHR surface = createSurface(instance, window);
     assert(surface);
 
@@ -992,22 +1106,32 @@ int main(int argc, const char * argv[]) {
     glm::vec3 right = glm::normalize(glm::cross(worldUp, -forward));
     glm::vec3 up = glm::normalize(glm::cross(-forward, right));
     
-    Camera cam;
-    cam._eye = glm::vec3( 0.1f, 0.5f, -0.2f);
-    cam._right = right;
-    cam._up = up;
-    cam._back = -forward;
-    cam._focal = 0.036f;
-    cam._sensorHeight = 0.056f;
-    cam._aspectRatio = 16.0f/9.0f;
+    _controller.reset(new Controller());
+    _camera.reset(new Camera());
+    
+    _camera->_eye = glm::vec3( 0.1f, 0.5f, -0.2f);
+    _camera->_right = right;
+    _camera->_up = up;
+    _camera->_back = -forward;
+    _camera->_focal = 0.036f;
+    _camera->_sensorHeight = 0.056f;
+    _camera->_aspectRatio = 16.0f/9.0f;
 
     
     UniformBuffer cam_ub;
     createUniformBuffer(cam_ub, swapchain.imageCount, device, memoryProperties, sizeof(Camera), triangleDescriptorSetLayout);
 
+    float t = 0.0f;
     while (!glfwWindowShouldClose(window)) {
-        // Poll for and process events 
+        
+       // _camera->_eye.y = 0.5f + 0.25f * cos(t);
+        t += 0.02;
+        std::chrono::milliseconds duration { 10 };
+        
+        // Poll for and process events
         glfwPollEvents();
+        
+        updateCameraFromController(_camera, _controller, duration);
  
         resizeSwapchainIfNecessary(swapchain, physicalDevice, device, surface, familyIndex, swapchainFormat, renderPass);
 
@@ -1039,7 +1163,7 @@ int main(int argc, const char * argv[]) {
 
 
 
-        updateUniformBuffer(device, imageIndex, cam_ub, cam);
+        updateUniformBuffer(device, imageIndex, cam_ub, (*_camera));
 
         VkViewport viewport = { 0, 0, float(swapchain.width), float(swapchain.height), 0, 1 };
         VkRect2D scissor = { {0, 0}, {uint32_t(swapchain.width), uint32_t(swapchain.height)} };
