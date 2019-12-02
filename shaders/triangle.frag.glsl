@@ -19,11 +19,10 @@ vec3 hsv2rgb(vec3 c) {
 float PI = 2.0 * acos(0.0);
 
 struct Camera {
-	vec3 _eye; float _focal;
-
-	vec3 _right; float _sensorHeight;
-	vec3 _up;float _aspectRatio;
-	vec3 _back;float _spareA;
+	vec3 _eye; 		float _focal;
+	vec3 _right; 	float _sensorHeight;
+	vec3 _up;		float _aspectRatio;
+	vec3 _back;		float _time;
 };
 
 layout(binding = 0) uniform UniformBufferObject {
@@ -65,10 +64,15 @@ vec4 sceneSpheres[] = {
 	vec4(-1.0, 0.0, -2.0, 0.3),
 	vec4(0.0, 0.1, -4.0, 0.3),
 	vec4(0.0, -0.1, -3.0, 0.2),
-
 	vec4(-1.0, 0.4, -3.5, 0.5),
 	vec4(0.5, 0.8, -2.0, 0.4),
 };
+
+vec4 getSphere(int s, float time) {
+	vec4 sphere = sceneSpheres[s];
+//	sphere.y = sphere.w + (sphere.y - sphere.w) * time;
+	return sphere;	
+}
 
 float sdf_sphere(vec3 pos, vec4 sphere) {
 	return length(sphere.xyz - pos) - sphere.w;
@@ -77,8 +81,11 @@ float sdf_sphere(vec3 pos, vec4 sphere) {
 vec2 sceneDistanceAt(vec3 pos) {
 	vec2 touch = vec2(10000.0, -1);
 
+	float animationPeriod = abs(sin(ubo._cam._time));
+
 	for (int p = 0; p < NUM_SPHERES; p++) {
-		float dist = sdf_sphere(pos, sceneSpheres[p]);
+		vec4 sphere = getSphere(p, animationPeriod);
+		float dist = sdf_sphere(pos, sphere);
 		if (dist <= touch.x) {
 			touch.x = max(0.0, dist);
 			touch.y = float(p) + 1.0;
@@ -98,9 +105,10 @@ vec2 sceneDistanceAt(vec3 pos) {
 
 vec3 calcNormal(int p, vec3 pos ) {
 	vec3 n = vec3(0, 1, 0);
+	float animationPeriod = abs(sin(ubo._cam._time));
 
 	if (p > 0) {
-		n = normalize(pos - sceneSpheres[p-1].xyz);
+		n = normalize(pos - getSphere(p - 1, animationPeriod).xyz);
 	}
 	
 
@@ -145,9 +153,9 @@ vec3 sceneSky(vec3 worldDir) {
 
 vec3 LIGHT_DIR = normalize(vec3(-1, 1, 0));
 
-vec3 sceneColorAt(int p, vec3 worldPos, vec3 worldDir, vec4 rayFrag) {
+vec3 sceneColorAt(int p, vec3 worldPos, vec3 worldDir, vec4 rayFrag, vec3 rayFragNormal) {
 	
-	vec3 n = calcNormal(p, rayFrag.xyz);
+	vec3 n = rayFragNormal;
 	float ldotn = max(0, dot(n, LIGHT_DIR));
 
 	//from the index of the prim found to the scenePrimMateria
@@ -205,15 +213,24 @@ void main()
 		outputColor = vec4(sceneSky(worldDir), 1.0);
 		return;
 	}
+
+	vec3 rayFragNormal = calcNormal(touched, rayFrag.xyz);
+
 	//outputColor = vec4(hsv2rgb(vec3(i / float(MAX_RAY_STEPS), 1.0, 1.0)), 1.0);
-	//outputColor = vec4(hsv2rgb(vec3(rayDepth / float(MAX_DEPTH), 1.0, 1.0)), 1.0);
-	outputColor = vec4(sceneColorAt(touched, worldPos, worldDir, rayFrag), 1.0);
+	//outputColor = vec4(hsv2rgb(vec3(rayFrag.w / float(MAX_DEPTH), 1.0, 1.0)), 1.0);
+	outputColor = vec4(sceneColorAt(touched, worldPos, worldDir, rayFrag, rayFragNormal), 1.0);
+	//outputColor.rgb = abs(rayFragNormal);
+
+	//vec3 adjustedPos = rayFrag.xyz + LIGHT_DIR * TOUCH_EPSILON;
+	//vec3 adjustedPos = worldPos + worldDir * (rayFrag.w - TOUCH_EPSILON);
+	vec3 adjustedPos = rayFrag.xyz + rayFragNormal * 0.01;
 
 	// shadow!
-	vec4 shadowFrag = rayTraceScene(rayFrag.xyz + LIGHT_DIR * 2.0 * TOUCH_EPSILON, LIGHT_DIR, touched);
+	vec4 shadowFrag = rayTraceScene(adjustedPos, LIGHT_DIR, touched);
 
 	if (touched >= 0) {
 		outputColor.xyz *= 0.5;
-	//	outputColor = vec4(hsv2rgb(vec3(touched / float(NUM_SPHERES + 1), 1.0, 1.0)), 1.0);
+		//outputColor = vec4(hsv2rgb(vec3(shadowFrag / float(NUM_SPHERES + 1), 1.0, 1.0)), 1.0);
+		//outputColor = vec4(hsv2rgb(vec3(shadowFrag.w / float(MAX_DEPTH), 1.0, 1.0)), 1.0);
 	}
 }

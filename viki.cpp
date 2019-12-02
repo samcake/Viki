@@ -8,6 +8,8 @@
 #include <glm/glm.hpp>
 #include <glm/ext.hpp>
 
+#include <chrono>
+
 /* Set platform defines at build time for volk to pick up. */
 #if defined(_WIN32)
 #define VK_USE_PLATFORM_WIN32_KHR
@@ -444,7 +446,7 @@ struct Camera {
     glm::vec3 _eye;     float _focal;
     glm::vec3 _right;   float _sensorHeight;
     glm::vec3 _up;      float _aspectRatio;
-    glm::vec3 _back;   float _spare;
+    glm::vec3 _back;   float _time;
 
 };
 
@@ -934,6 +936,8 @@ void updateCameraFromController(std::shared_ptr<Camera>& cam, std::shared_ptr<Co
     if (focalChange != 0) {
         _camera->_focal = std::max( 0.001f, _camera->_focal + focalChange);
     }
+
+    _camera->_time += time;
 }
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
@@ -1056,10 +1060,10 @@ int main(int argc, const char * argv[]) {
     Swapchain swapchain;
     createSwapchain(swapchain, physicalDevice, device, surface, familyIndex, swapchainFormat, renderPass);
 
-    VkShaderModule triangleVS = loadShader(device, "../shaders/triangle.vert.glsl.spv");
+    VkShaderModule triangleVS = loadShader(device, "./shaders/triangle.vert.glsl.spv");
     assert(triangleVS);
 
-    VkShaderModule triangleFS = loadShader(device, "../shaders/triangle.frag.glsl.spv");
+    VkShaderModule triangleFS = loadShader(device, "./shaders/triangle.frag.glsl.spv");
     assert(triangleFS);
 
     // TODO: this is critical for performance!
@@ -1116,7 +1120,7 @@ int main(int argc, const char * argv[]) {
     _camera->_focal = 0.036f;
     _camera->_sensorHeight = 0.056f;
     _camera->_aspectRatio = 16.0f/9.0f;
-
+    _camera->_time = 0.0f;
     
     UniformBuffer cam_ub;
     createUniformBuffer(cam_ub, swapchain.imageCount, device, memoryProperties, sizeof(Camera), triangleDescriptorSetLayout);
